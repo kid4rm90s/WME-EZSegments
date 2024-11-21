@@ -50,7 +50,7 @@ const saveOptions = (options) => {
 }
 
 const getOptions = () => {
-    return JSON.parse(window.localStorage.getItem('WME_EZRoads_Options') || '{roadType: 1, unpaved: false, setStreet: false, autosave: false}');
+    return JSON.parse(window.localStorage.getItem('WME_EZRoads_Options')) || {roadType: 1, unpaved: false, setStreet: false, autosave: false};
 }
 
 const WME_EZRoads_bootstrap = () => {
