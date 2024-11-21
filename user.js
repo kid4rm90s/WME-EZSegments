@@ -65,7 +65,7 @@ const WME_EZRoads_bootstrap = () => {
     if (wmeSDK.State.isReady) {
         WME_EZRoads_init();
     } else {
-        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(WMESpeedhelper_init());
+        wmeSDK.Events.once({ eventName: 'wme-ready' }).then(WME_EZRoads_init());
     }
 }
 
