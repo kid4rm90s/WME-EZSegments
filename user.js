@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZRoad
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezroad
-// @version      0.0.3
+// @version      0.0.5
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @match        https://www.waze.com/*/editor*
