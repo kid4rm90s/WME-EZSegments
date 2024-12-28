@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZRoad
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezroad
-// @version      0.0.5
+// @version      0.0.7
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @match        https://www.waze.com/*/editor*
@@ -10,8 +10,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @grant        none
 // @license MIT
-// @downloadURL https://greasyfork.org/en/scripts/518381-wme-ezroad/code/user.js
-// @updateURL https://greasyfork.org/en/scripts/518381-wme-ezroad/code/user.js
+// @downloadURL https://update.greasyfork.org/scripts/518381/WME%20EZRoad.user.js
+// @updateURL https://update.greasyfork.org/scripts/518381/WME%20EZRoad.meta.js
 // ==/UserScript==
 
 const ScriptName = GM_info.script.name;
@@ -103,13 +103,27 @@ const WME_EZRoads_init = () => {
     constructSettings();
 
     document.addEventListener("keydown", (event) => {
-        // Check if the 'U' key was pressed
         if (event.key.toLowerCase() === "u") {
             handleUpdate();
         }
     });
 
     log("Completed Init")
+}
+
+const getEmptyStreet = () => {
+}
+
+const getEmptyCity = () => {
+
+    return wmeSDK.DataModel.Cities.getCity({
+        cityName: '',
+        countryId: getCurrentCountry().id
+    }) || wmeSDK.DataModel.Cities.addCity({
+        cityName: '',
+        countryId: getCurrentCountry().id
+    });
+
 }
 
 const handleUpdate = () => {
@@ -124,19 +138,37 @@ const handleUpdate = () => {
     selection.ids.forEach(id => {
 
         if (options.roadType) {
-            wmeSDK.DataModel.Segments.updateSegment({
-                segmentId: id,
-                roadType: parseInt(options.roadType)
-            })
+
+            const seg = wmeSDK.DataModel.Segments.getById({segmentId: id});
+
+            if(seg.roadType !== options.roadType) {
+                wmeSDK.DataModel.Segments.updateSegment({
+                    segmentId: id,
+                    roadType: options.roadType
+                })
+            }
         }
 
         if (options.setStreet) {
-            const city = getTopCity();
-            console.log(city);
-            const street = wmeSDK.DataModel.Streets.getStreet({
+
+            let city;
+            let street;
+
+            city = getTopCity() || getEmptyCity();
+
+            street = wmeSDK.DataModel.Streets.getStreet({
                 cityId: city.id,
                 streetName: '',
             });
+
+            log(`City ${city.id}`);
+
+            if(!street) {
+                street = wmeSDK.DataModel.Streets.addStreet({
+                    streetName: '',
+                    cityId: city.id
+                });
+            }
 
             wmeSDK.DataModel.Segments.updateAddress({
                 segmentId: id,
@@ -147,9 +179,7 @@ const handleUpdate = () => {
     })
 
     if (options.autosave) {
-        wmeSDK.Editing.save().then(() => {
-            // Actions after successful save
-        });
+        wmeSDK.Editing.save().then(() => {});
     }
 
 }
