@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.9
+// @version      0.1.10
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -19,7 +19,6 @@
 const ScriptName = GM_info.script.name;
 const ScriptVersion = GM_info.script.version;
 let wmeSDK;
-let buttonCreated = false;
 
 const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60 };
 
@@ -83,67 +82,38 @@ const WME_EZRoads_init = () => {
     log("Initing");
 
     const roadObserver = new MutationObserver((mutations) => {
-        // Only proceed if we haven't created the button yet
-        if (buttonCreated) {
-            return;
-        }
-
         mutations.forEach((mutation) => {
-            // Exit early if button already created
-            if (buttonCreated) return;
-
             for (let i = 0; i < mutation.addedNodes.length; i++) {
-                // Exit early if button already created
-                if (buttonCreated) break;
-
                 const addedNode = mutation.addedNodes[i];
 
                 if (addedNode.nodeType === Node.ELEMENT_NODE) {
                     let editSegment = addedNode.querySelector('#segment-edit-general');
-                    if (editSegment && !buttonCreated) {
+                    if (editSegment) {
                         openPanel = editSegment;
 
-                        // Extra check - don't proceed if button exists
-                        const existingButton = document.querySelector('[data-ez-road-button="true"]');
-                        if (existingButton) {
-                            log("Button already exists in DOM, not creating another");
-                            buttonCreated = true;
-                            return;
+                        // Check if THIS SPECIFIC panel already has the button
+                        const parentElement = editSegment.parentNode;
+                        if (!parentElement.querySelector('[data-ez-road-button="true"]')) {
+                            log("Creating Quick Set Road button for this panel");
+                            const quickButton = document.createElement('wz-button');
+                            quickButton.setAttribute('type', 'button');
+                            quickButton.setAttribute('style', 'margin-bottom: 5px; width: 100%');
+                            quickButton.setAttribute('disabled', 'false');
+                            quickButton.setAttribute('data-ez-road-button', 'true');
+                            quickButton.setAttribute('id', 'ez-road-quick-button-' + Date.now()); // Unique ID using timestamp
+                            quickButton.classList.add('send-button', 'ez-comment-button');
+                            quickButton.textContent = 'Quick Set Road';
+                            parentElement.insertBefore(quickButton, editSegment);
+                            quickButton.addEventListener('mousedown', () => handleUpdate());
+                            log("Button created for current panel");
+                        } else {
+                            log("This panel already has the button, skipping creation");
                         }
-
-                        // Create button with a separate function for clarity
-                        createQuickSetButton(editSegment);
                     }
                 }
             }
         });
     });
-
-    // New function to create the button
-    function createQuickSetButton(editSegment) {
-        // Final check before creating
-        if (buttonCreated || document.querySelector('[data-ez-road-button="true"]')) {
-            log("Button creation prevented - already exists");
-            buttonCreated = true;
-            return;
-        }
-
-        log("Creating Quick Set Road button");
-        const quickButton = document.createElement('wz-button');
-        quickButton.setAttribute('type', 'button');
-        quickButton.setAttribute('style', 'margin-bottom: 5px; width: 100%');
-        quickButton.setAttribute('disabled', 'false');
-        quickButton.setAttribute('data-ez-road-button', 'true');
-        quickButton.setAttribute('id', 'ez-road-quick-button');
-        quickButton.classList.add('send-button', 'ez-comment-button');
-        quickButton.textContent = 'Quick Set Road';
-        editSegment.parentNode.insertBefore(quickButton, editSegment);
-        quickButton.addEventListener('mousedown', () => handleUpdate());
-
-        // Set flag to prevent future creation
-        buttonCreated = true;
-        log("Button created and flag set");
-    }
 
     roadObserver.observe(document.getElementById('edit-panel'), { childList: true, subtree: true });
 
