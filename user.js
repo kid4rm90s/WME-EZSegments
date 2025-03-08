@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         WME EZRoad
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezroad
-// @version      0.0.7
+// @version      0.0.8
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
-// @match        https://www.waze.com/*/editor*
+// @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
+// @exclude      https://www.waze.com/user/*editor/*
+// @exclude      https://www.waze.com/*/user/*editor/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
@@ -17,6 +19,8 @@
 const ScriptName = GM_info.script.name;
 const ScriptVersion = GM_info.script.version;
 let wmeSDK;
+
+const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60 };
 
 const log = (message) => {
     if (typeof message === 'string') {
@@ -50,7 +54,10 @@ const saveOptions = (options) => {
 }
 
 const getOptions = () => {
-    return JSON.parse(window.localStorage.getItem('WME_EZRoads_Options')) || {roadType: 1, unpaved: false, setStreet: false, autosave: false};
+
+    const savedOptions = JSON.parse(window.localStorage.getItem('WME_EZRoads_Options')) || {};
+    // Merge saved options with defaults to ensure all expected options exist
+    return { ...defaultOptions, ...savedOptions };
 }
 
 const WME_EZRoads_bootstrap = () => {
@@ -69,6 +76,8 @@ const WME_EZRoads_bootstrap = () => {
     }
 }
 
+let openPanel;
+
 const WME_EZRoads_init = () => {
     log("Initing");
 
@@ -78,12 +87,9 @@ const WME_EZRoads_init = () => {
                 const addedNode = mutation.addedNodes[i];
 
                 if (addedNode.nodeType === Node.ELEMENT_NODE) {
-                    // add the button here
-                    // if (addedNode.querySelector('div.speed-limit-fwd') || addedNode.querySelector('div.speed-limit-rev')) {
-                    //     makeSigns();
-                    // }
                     let editSegment = addedNode.querySelector('#segment-edit-general');
                     if (editSegment) {
+                        openPanel = editSegment;
                         const quickButton = document.createElement('wz-button');
                         quickButton.setAttribute('type', 'button');
                         quickButton.setAttribute('style', 'margin-bottom: 5px, width: 100%');
@@ -103,7 +109,20 @@ const WME_EZRoads_init = () => {
     constructSettings();
 
     document.addEventListener("keydown", (event) => {
-        if (event.key.toLowerCase() === "u") {
+        // Check if the active element is an input or textarea
+        const isInputActive = document.activeElement && (
+            document.activeElement.tagName === 'INPUT' ||
+            document.activeElement.tagName === 'TEXTAREA' ||
+            document.activeElement.contentEditable === 'true' ||
+            document.activeElement.tagName === 'WZ-AUTOCOMPLETE' ||
+            document.activeElement.tagName === 'WZ-TEXTAREA'
+        );
+
+        log(document.activeElement.tagName);
+        log(isInputActive);
+
+        // Only trigger the update if the active element is not an input or textarea
+        if (!isInputActive && event.key.toLowerCase() === "u") {
             handleUpdate();
         }
     });
@@ -137,18 +156,26 @@ const handleUpdate = () => {
 
     selection.ids.forEach(id => {
 
+        // Road Type
         if (options.roadType) {
 
-            const seg = wmeSDK.DataModel.Segments.getById({segmentId: id});
+            const seg = wmeSDK.DataModel.Segments.getById({ segmentId: id });
 
-            if(seg.roadType !== options.roadType) {
-                wmeSDK.DataModel.Segments.updateSegment({
-                    segmentId: id,
-                    roadType: options.roadType
-                })
+            if (seg.roadType !== options.roadType) {
+                wmeSDK.DataModel.Segments.updateSegment({ segmentId: id, roadType: options.roadType });
             }
         }
 
+        // Speed Limit
+        if (options.setSpeed != -1) {
+            wmeSDK.DataModel.Segments.updateSegment({
+                segmentId: id,
+                fwdSpeedLimit: parseInt(options.setSpeed),
+                revSpeedLimit: parseInt(options.setSpeed)
+            });
+        }
+
+        // Handling the street
         if (options.setStreet) {
 
             let city;
@@ -163,7 +190,7 @@ const handleUpdate = () => {
 
             log(`City ${city.id}`);
 
-            if(!street) {
+            if (!street) {
                 street = wmeSDK.DataModel.Streets.addStreet({
                     streetName: '',
                     cityId: city.id
@@ -176,90 +203,175 @@ const handleUpdate = () => {
             })
         }
 
+        log(options);
+
+        if (options.unpaved) {
+            const wzCheckbox = openPanel.querySelector('wz-checkbox[name="unpaved"]');
+            const hiddenInput = wzCheckbox.querySelector('input[type="checkbox"][name="unpaved"]');
+            hiddenInput.click();
+        }
+
     })
 
+    // Autosave
     if (options.autosave) {
-        wmeSDK.Editing.save().then(() => {});
+        wmeSDK.Editing.save().then(() => { });
     }
 
 }
 
 const constructSettings = () => {
-
-    let localOptions = getOptions();
+    const localOptions = getOptions();
 
     const update = (key, value) => {
         const options = getOptions();
         options[key] = value;
         localOptions[key] = value;
         saveOptions(options);
-    }
+    };
 
-    // -- Set up the tab for the script
+    // Reset all options to defaults
+    const resetOptions = () => {
+        saveOptions(defaultOptions);
+        // Refresh the page to reload settings
+        window.location.reload();
+    };
+
+    // Road type definitions
+    const roadTypes = [
+        { id: 1, name: 'Street', value: 1 },
+        { id: 2, name: 'Primary Street', value: 2 },
+        { id: 3, name: 'Private Road', value: 17 },
+        { id: 4, name: 'Parking Lot Road', value: 20 },
+        { id: 5, name: 'Offroad', value: 8 },
+        { id: 6, name: 'Railroad', value: 18 }
+    ];
+
+    // Checkbox option definitions
+    const checkboxOptions = [
+        { id: 'setStreet', text: 'Set Street To None', key: 'setStreet' },
+        { id: 'autosave', text: 'Autosave on Action', key: 'autosave' },
+        { id: 'unpaved', text: 'Set Road as Unpaved', key: 'unpaved' }
+    ];
+
+    // Helper function to create radio buttons
+    const createRadioButton = (roadType) => {
+        const id = `road-${roadType.id}`;
+        const isChecked = localOptions.roadType === roadType.value;
+        const div = $(`<div class="ezroads-option">
+            <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
+            <label for="${id}">${roadType.name}</label>
+        </div>`);
+        div.on('click', () => update('roadType', roadType.value));
+        return div;
+    };
+
+    // Helper function to create checkboxes
+    const createCheckbox = (option) => {
+        const isChecked = localOptions[option.key];
+        const div = $(`<div class="ezroads-option">
+            <input type="checkbox" id="${option.id}" name="${option.id}" ${isChecked ? 'checked' : ''}>
+            <label for="${option.id}">${option.text}</label>
+        </div>`);
+        div.on('click', () => update(option.key, $(`#${option.id}`).prop('checked')));
+        return div;
+    };
+
+    // Register the script tab
     wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
         tabLabel.innerText = 'EZRoads';
         tabLabel.title = 'Easily Update Roads';
 
+        // Setup base styles
+        const styles = $(`<style>
+            #ezroads-settings h2, #ezroads-settings h5 {
+                margin-top: 0;
+                margin-bottom: 10px;
+            }
+            .ezroads-section {
+                margin-bottom: 15px;
+            }
+            .ezroads-option {
+                margin-bottom: 5px;
+            }
+            .ezroads-speed-input {
+                margin-top: 10px;
+            }
+            .ezroads-speed-input label {
+                display: block;
+                margin-bottom: 5px;
+            }
+            .ezroads-speed-input input {
+                width: 80px;
+            }
+            .ezroads-reset-button {
+                margin-top: 20px;
+                padding: 8px 12px;
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+            }
+            .ezroads-reset-button:hover {
+                background-color: #d32f2f;
+            }
+        </style>`);
+
         tabPane.innerHTML = '<div id="ezroads-settings"></div>';
-
         const scriptContentPane = $('#ezroads-settings');
+        scriptContentPane.append(styles);
 
-        scriptContentPane.append(`<h2 style="margin-top: 0;">EZRoads</h2>`);
-        scriptContentPane.append(`<span>Current Version: <b>${ScriptVersion}</b></span><br>`);
-        scriptContentPane.append(`<span>Update Keybind: <kbd>u</kbd></span><br>`);
+        // Header section
+        const header = $(`<div class="ezroads-section">
+            <h2>EZRoads</h2>
+            <div>Current Version: <b>${ScriptVersion}</b></div>
+            <div>Update Keybind: <kbd>u</kbd></div>
+        </div>`);
+        scriptContentPane.append(header);
 
-        scriptContentPane.append(`<h5 style="margin-top: 0;">Set Road Type</h5>`);
+        // Road type section
+        const roadTypeSection = $(`<div class="ezroads-section">
+            <h5>Set Road Type</h5>
+            <div id="road-type-options"></div>
+        </div>`);
+        scriptContentPane.append(roadTypeSection);
 
-        const primary = $(`
-            <input type="radio" id="road-ps" name="defaultRoad" ${localOptions.roadType === 2 && 'checked'}>
-            <label for="road-ps">Primary Street</label><br>
-        `);
-        primary.on('click', () => update('roadType', 2));
+        const roadTypeOptions = roadTypeSection.find('#road-type-options');
+        roadTypes.forEach(roadType => {
+            roadTypeOptions.append(createRadioButton(roadType));
+        });
 
-        const private = $(`
-            <input type="radio" id="road-private" name="defaultRoad" ${localOptions.roadType === 17 && 'checked'}>
-            <label for="road-private">Private Road</label><br>
-        `);
-        private.on('click', () => update('roadType', 17));
+        // Additional options section
+        const additionalSection = $(`<div class="ezroads-section">
+            <h5>Additional Options</h5>
+            <div id="additional-options"></div>
+        </div>`);
+        scriptContentPane.append(additionalSection);
 
-        const parking = $(`
-            <input type="radio" id="road-parking" name="defaultRoad" ${localOptions.roadType === 20 && 'checked'}>
-            <label for="road-parking">Parking Lot Road</label><br>
-        `)
-        parking.on('click', () => update('roadType', 20));
+        const additionalOptions = additionalSection.find('#additional-options');
+        checkboxOptions.forEach(option => {
+            additionalOptions.append(createCheckbox(option));
+        });
 
-        const street = $(`
-            <input type="radio" id="road-street" name="defaultRoad" ${localOptions.roadType === 1 && 'checked'}>
-            <label for="road-street">Street</label><br>
-        `)
-        street.on('click', () => update('roadType', 1));
+        // Speed setting section
+        const speedInput = $(`<div class="ezroads-section ezroads-speed-input">
+            <label for="setSpeed">Value to set speed to (set to -1 to disable)</label>
+            <input type="number" id="setSpeed" name="setSpeed" value="${localOptions.setSpeed}">
+        </div>`);
+        speedInput.find('input').on('change', function () {
+            update('setSpeed', parseInt(this.value, 10));
+        });
+        scriptContentPane.append(speedInput);
 
-        const offroad = $(`
-            <input type="radio" id="offroad" name="defaultRoad" ${localOptions.roadType === 8 && 'checked'}>
-            <label for="offroad">Set Offroad</label><br>
-        `)
-        offroad.on('click', () => update('roadType', 8))
-
-        scriptContentPane.append(primary).append(private).append(parking).append(street).append(offroad);
-
-        scriptContentPane.append(`<h5 style="margin-top: 0;">Additional Options</h5>`);
-
-        const setStreet = $(`
-            <input type="checkbox" id="setStreet" name="setStreet"  ${localOptions.setStreet && 'checked'}>
-            <label for="setStreet">Set Street To None</label><br/>
-        `)
-        setStreet.on('click', () => update('setStreet', !localOptions.setStreet))
-
-        scriptContentPane.append(setStreet);
-
-        const autosave = $(`
-            <input type="checkbox" id="autosave" name="autosave"  ${localOptions.autosave && 'checked'}>
-            <label for="autosave">Autosave on Action</label>
-        `)
-        autosave.on('click', () => update('autosave', !localOptions.autosave))
-
-        scriptContentPane.append(autosave);
-
+        // Reset button section
+        const resetButton = $(`<button class="ezroads-reset-button">Reset All Options</button>`);
+        resetButton.on('click', function () {
+            if (confirm('Are you sure you want to reset all options to default values?')) {
+                resetOptions();
+            }
+        });
+        scriptContentPane.append(resetButton);
     });
-
-}
+};
