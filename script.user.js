@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.7
+// @version      0.1.8
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -90,16 +90,25 @@ const WME_EZRoads_init = () => {
                     let editSegment = addedNode.querySelector('#segment-edit-general');
                     if (editSegment) {
                         openPanel = editSegment;
-                        // Check if the button already exists before creating a new one
-                        if (!editSegment.parentNode.querySelector('.ez-comment-button')) {
+                        // Much more strict check to ensure button is only added once
+                        const buttonSelector = '[data-ez-road-button="true"]';
+                        const buttonExists =
+                            editSegment.parentNode.querySelector(buttonSelector) ||
+                            document.querySelector(buttonSelector);
+
+                        if (!buttonExists) {
+                            log("Creating Quick Set Road button");
                             const quickButton = document.createElement('wz-button');
                             quickButton.setAttribute('type', 'button');
                             quickButton.setAttribute('style', 'margin-bottom: 5px, width: 100%');
                             quickButton.setAttribute('disabled', 'false');
+                            quickButton.setAttribute('data-ez-road-button', 'true');
                             quickButton.classList.add('send-button', 'ez-comment-button');
                             quickButton.textContent = 'Quick Set Road';
                             editSegment.parentNode.insertBefore(quickButton, editSegment);
                             quickButton.addEventListener('mousedown', () => handleUpdate());
+                        } else {
+                            log("Quick Set Road button already exists, skipping creation");
                         }
                     }
                 }
