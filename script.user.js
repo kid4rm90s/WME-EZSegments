@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.6
+// @version      0.1.7
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -90,14 +90,17 @@ const WME_EZRoads_init = () => {
                     let editSegment = addedNode.querySelector('#segment-edit-general');
                     if (editSegment) {
                         openPanel = editSegment;
-                        const quickButton = document.createElement('wz-button');
-                        quickButton.setAttribute('type', 'button');
-                        quickButton.setAttribute('style', 'margin-bottom: 5px, width: 100%');
-                        quickButton.setAttribute('disabled', 'false');
-                        quickButton.classList.add('send-button', 'ez-comment-button');
-                        quickButton.textContent = 'Quick Set Road';
-                        editSegment.parentNode.insertBefore(quickButton, editSegment);
-                        quickButton.addEventListener('mousedown', () => handleUpdate());
+                        // Check if the button already exists before creating a new one
+                        if (!editSegment.parentNode.querySelector('.ez-comment-button')) {
+                            const quickButton = document.createElement('wz-button');
+                            quickButton.setAttribute('type', 'button');
+                            quickButton.setAttribute('style', 'margin-bottom: 5px, width: 100%');
+                            quickButton.setAttribute('disabled', 'false');
+                            quickButton.classList.add('send-button', 'ez-comment-button');
+                            quickButton.textContent = 'Quick Set Road';
+                            editSegment.parentNode.insertBefore(quickButton, editSegment);
+                            quickButton.addEventListener('mousedown', () => handleUpdate());
+                        }
                     }
                 }
             }
