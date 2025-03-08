@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         WME EZRoad
-// @namespace    https://greasyfork.org/en/scripts/518381-wme-ezroad
-// @version      0.0.8
+// @name         WME EZSegments
+// @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
+// @version      0.1.3
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -12,8 +12,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @grant        none
 // @license MIT
-// @downloadURL https://update.greasyfork.org/scripts/518381/WME%20EZRoad.user.js
-// @updateURL https://update.greasyfork.org/scripts/518381/WME%20EZRoad.meta.js
+// @downloadURL https://update.greasyfork.org/scripts/518381/WME%20EZSegments.user.js
+// @updateURL https://update.greasyfork.org/scripts/518381/WME%20EZSegments.meta.js
 // ==/UserScript==
 
 const ScriptName = GM_info.script.name;
@@ -205,10 +205,42 @@ const handleUpdate = () => {
 
         log(options);
 
+        // Updated unpaved handler with fallback
         if (options.unpaved) {
-            const wzCheckbox = openPanel.querySelector('wz-checkbox[name="unpaved"]');
-            const hiddenInput = wzCheckbox.querySelector('input[type="checkbox"][name="unpaved"]');
-            hiddenInput.click();
+            // First try the new method - look for the unpaved chip using the icon class
+            const unpavedIcon = openPanel.querySelector('.w-icon-unpaved-fill');
+            let unpavedToggled = false;
+
+            if (unpavedIcon) {
+                // Click the parent wz-checkable-chip element
+                const unpavedChip = unpavedIcon.closest('wz-checkable-chip');
+                if (unpavedChip) {
+                    unpavedChip.click();
+                    log('Clicked unpaved chip');
+                    unpavedToggled = true;
+                }
+            }
+
+            // If new method failed, try the old method as fallback
+            if (!unpavedToggled) {
+                try {
+                    const wzCheckbox = openPanel.querySelector('wz-checkbox[name="unpaved"]');
+                    if (wzCheckbox) {
+                        const hiddenInput = wzCheckbox.querySelector('input[type="checkbox"][name="unpaved"]');
+                        if (hiddenInput) {
+                            hiddenInput.click();
+                            log('Clicked unpaved checkbox (fallback method)');
+                            unpavedToggled = true;
+                        }
+                    }
+                } catch (e) {
+                    log('Fallback unpaved toggle method failed: ' + e);
+                }
+            }
+
+            if (!unpavedToggled) {
+                log('Could not toggle unpaved setting - no compatible elements found');
+            }
         }
 
     })

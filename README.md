@@ -1,5 +1,14 @@
-# WME EZRoads
+# WME EZSegments
 
-Easily update roads. Not ready for public use just yet, I am slowly working on the kinks and issues :) 
+An easy way to update segments in WME (Waze Map Editor).
 
-https://greasyfork.org/en/scripts/518381-wme-ezroad
+## Changelogs
+
+### Version 0.1.3
+
+First major public release of WME EZSegments
+```diff
++ Fixed an issue when running in compact mode
++ Updated how settings are stored
+~ Updated name to reflect more what the script does
+```
