@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.12
+// @version      0.1.13
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -317,28 +317,14 @@ const constructSettings = () => {
         saveOptions(options);
     };
 
-    // Update lock level for the current road type
-    const updateLockLevel = (lockLevel) => {
+    // Update lock level for a specific road type
+    const updateLockLevel = (roadTypeId, lockLevel) => {
         const options = getOptions();
-        const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
-        if (selectedRoad) {
-            const lockIndex = options.locks.findIndex(l => l.id === selectedRoad.id);
-            if (lockIndex !== -1) {
-                options.locks[lockIndex].lock = parseInt(lockLevel);
-                localOptions.locks = options.locks;
-                saveOptions(options);
-            }
-        }
-    };
-
-    // Update displayed lock level when road type changes
-    const updateLockDropdown = () => {
-        const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
-        if (selectedRoad) {
-            const lockSetting = localOptions.locks.find(l => l.id === selectedRoad.id);
-            if (lockSetting && $('#lock-level-select').length) {
-                $('#lock-level-select').val(lockSetting.lock);
-            }
+        const lockIndex = options.locks.findIndex(l => l.id === roadTypeId);
+        if (lockIndex !== -1) {
+            options.locks[lockIndex].lock = parseInt(lockLevel);
+            localOptions.locks = options.locks;
+            saveOptions(options);
         }
     };
 
@@ -368,7 +354,6 @@ const constructSettings = () => {
         div.on('click', () => {
             update('roadType', roadType.value);
             currentRoadType = roadType.value;
-            updateLockDropdown();
         });
         return div;
     };
@@ -424,6 +409,22 @@ const constructSettings = () => {
             .ezroads-reset-button:hover {
                 background-color: #d32f2f;
             }
+            .ezroads-lock-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+            .ezroads-lock-table td {
+                padding: 4px 0;
+            }
+            .ezroads-lock-table select {
+                width: 100%;
+            }
+            .ezroads-lock-label {
+                font-weight: bold;
+                margin-bottom: 5px;
+                display: block;
+            }
         </style>`);
 
         tabPane.innerHTML = '<div id="ezroads-settings"></div>';
@@ -472,36 +473,48 @@ const constructSettings = () => {
         });
         scriptContentPane.append(speedInput);
 
-        // Lock level section
-        const lockLevelSection = $(`<div class="ezroads-section ezroads-lock-input">
-            <label for="lock-level-select">Lock level for selected road type</label>
-            <select id="lock-level-select" name="lockLevel" ${!localOptions.setLock ? 'disabled' : ''}>
-                ${locks.map(lock => `<option value="${lock.value}">Level ${lock.value}</option>`).join('')}
-            </select>
+        // Lock levels section - showing a table with all road types and their lock levels
+        const lockLevelsSection = $(`<div class="ezroads-section">
+            <h5>Lock Levels</h5>
+            <div class="ezroads-lock-levels">
+                <span class="ezroads-lock-label">Set lock level for each road type:</span>
+                <table class="ezroads-lock-table">
+                    <tbody id="lock-levels-table">
+                    </tbody>
+                </table>
+            </div>
         </div>`);
 
-        // Set the current lock level for the selected road type
-        const updateInitialLockLevel = () => {
-            const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
-            if (selectedRoad) {
-                const lockSetting = localOptions.locks.find(l => l.id === selectedRoad.id);
-                if (lockSetting) {
-                    lockLevelSection.find('#lock-level-select').val(lockSetting.lock);
-                }
-            }
-        };
+        scriptContentPane.append(lockLevelsSection);
 
-        lockLevelSection.find('select').on('change', function () {
-            updateLockLevel(this.value);
+        const lockLevelsTable = lockLevelsSection.find('#lock-levels-table');
+
+        // Create a row for each road type with its own lock level dropdown
+        roadTypes.forEach(roadType => {
+            const lockSetting = localOptions.locks.find(l => l.id === roadType.id) || { id: roadType.id, lock: 1 };
+            const lockDropdown = $(`<select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
+                ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Level ${lock.value}</option>`).join('')}
+            </select>`);
+
+            const row = $(`<tr>
+                <td style="width: 70%">${roadType.name}</td>
+                <td style="width: 30%"></td>
+            </tr>`);
+
+            row.find('td:last-child').append(lockDropdown);
+            lockLevelsTable.append(row);
+
+            // Add change event for this dropdown
+            lockDropdown.on('change', function () {
+                updateLockLevel(roadType.id, $(this).val());
+            });
         });
 
-        // Update lock dropdown state when setLock checkbox changes
-        $('#setLock').on('change', function () {
-            lockLevelSection.find('#lock-level-select').prop('disabled', !this.checked);
+        // Update all lock dropdowns when setLock checkbox changes
+        $(document).on('click', '#setLock', function () {
+            const isChecked = $(this).prop('checked');
+            $('.road-lock-level').prop('disabled', !isChecked);
         });
-
-        scriptContentPane.append(lockLevelSection);
-        updateInitialLockLevel();
 
         // Reset button section
         const resetButton = $(`<button class="ezroads-reset-button">Reset All Options</button>`);
