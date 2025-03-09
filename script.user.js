@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.13
+// @version      0.1.14
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -347,18 +347,31 @@ const constructSettings = () => {
     const createRadioButton = (roadType) => {
         const id = `road-${roadType.id}`;
         const isChecked = localOptions.roadType === roadType.value;
+        const lockSetting = localOptions.locks.find(l => l.id === roadType.id) || { id: roadType.id, lock: 1 };
+
         const div = $(`<div class="ezroads-option">
-            <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
-            <label for="${id}">${roadType.name}</label>
+            <div class="ezroads-radio-container">
+                <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
+                <label for="${id}">${roadType.name}</label>
+                <select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
+                    ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Lock ${lock.value}</option>`).join('')}
+                </select>
+            </div>
         </div>`);
-        div.on('click', () => {
+
+        div.find('input[type="radio"]').on('click', () => {
             update('roadType', roadType.value);
             currentRoadType = roadType.value;
         });
+
+        div.find('select').on('change', function () {
+            updateLockLevel(roadType.id, $(this).val());
+        });
+
         return div;
     };
 
-    // Helper function to create checkboxes
+    // Helper function to create checkboxess';
     const createCheckbox = (option) => {
         const isChecked = localOptions[option.key];
         const div = $(`<div class="ezroads-option">
@@ -384,7 +397,18 @@ const constructSettings = () => {
                 margin-bottom: 15px;
             }
             .ezroads-option {
-                margin-bottom: 5px;
+                margin-bottom: 8px;
+            }
+            .ezroads-radio-container {
+                display: flex;
+                align-items: center;
+            }
+            .ezroads-radio-container label {
+                flex: 1;
+                margin-right: 10px;
+            }
+            .ezroads-radio-container select {
+                width: 80px;
             }
             .ezroads-speed-input {
                 margin-top: 10px;
@@ -408,22 +432,6 @@ const constructSettings = () => {
             }
             .ezroads-reset-button:hover {
                 background-color: #d32f2f;
-            }
-            .ezroads-lock-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 10px;
-            }
-            .ezroads-lock-table td {
-                padding: 4px 0;
-            }
-            .ezroads-lock-table select {
-                width: 100%;
-            }
-            .ezroads-lock-label {
-                font-weight: bold;
-                margin-bottom: 5px;
-                display: block;
             }
         </style>`);
 
@@ -473,48 +481,13 @@ const constructSettings = () => {
         });
         scriptContentPane.append(speedInput);
 
-        // Lock levels section - showing a table with all road types and their lock levels
-        const lockLevelsSection = $(`<div class="ezroads-section">
-            <h5>Lock Levels</h5>
-            <div class="ezroads-lock-levels">
-                <span class="ezroads-lock-label">Set lock level for each road type:</span>
-                <table class="ezroads-lock-table">
-                    <tbody id="lock-levels-table">
-                    </tbody>
-                </table>
-            </div>
-        </div>`);
-
-        scriptContentPane.append(lockLevelsSection);
-
-        const lockLevelsTable = lockLevelsSection.find('#lock-levels-table');
-
-        // Create a row for each road type with its own lock level dropdown
-        roadTypes.forEach(roadType => {
-            const lockSetting = localOptions.locks.find(l => l.id === roadType.id) || { id: roadType.id, lock: 1 };
-            const lockDropdown = $(`<select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
-                ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Level ${lock.value}</option>`).join('')}
-            </select>`);
-
-            const row = $(`<tr>
-                <td style="width: 70%">${roadType.name}</td>
-                <td style="width: 30%"></td>
-            </tr>`);
-
-            row.find('td:last-child').append(lockDropdown);
-            lockLevelsTable.append(row);
-
-            // Add change event for this dropdown
-            lockDropdown.on('change', function () {
-                updateLockLevel(roadType.id, $(this).val());
-            });
-        });
-
         // Update all lock dropdowns when setLock checkbox changes
         $(document).on('click', '#setLock', function () {
             const isChecked = $(this).prop('checked');
             $('.road-lock-level').prop('disabled', !isChecked);
         });
+
+        // Remove the separate lock levels section
 
         // Reset button section
         const resetButton = $(`<button class="ezroads-reset-button">Reset All Options</button>`);
