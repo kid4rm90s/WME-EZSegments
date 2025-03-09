@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.10
+// @version      0.1.11
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -284,10 +284,21 @@ const constructSettings = () => {
     const roadTypes = [
         { id: 1, name: 'Street', value: 1 },
         { id: 2, name: 'Primary Street', value: 2 },
-        { id: 3, name: 'Private Road', value: 17 },
-        { id: 4, name: 'Parking Lot Road', value: 20 },
-        { id: 5, name: 'Offroad', value: 8 },
-        { id: 6, name: 'Railroad', value: 18 }
+        { id: 3, name: 'Freeway', value: 3 },
+        { id: 4, name: 'Ramp', value: 4 },
+        { id: 5, name: 'Walking Trail', value: 5 },
+        { id: 6, name: 'Major Highway', value: 6 },
+        { id: 7, name: 'Minor Freeway', value: 7 },
+        { id: 8, name: 'Offroad', value: 8 },
+        { id: 9, name: 'Walkway', value: 9 },
+        { id: 10, name: 'Pedestrian Walkway', value: 10 },
+        { id: 11, name: 'Ferry', value: 15 },
+        { id: 12, name: 'Stairway', value: 16 },
+        { id: 13, name: 'Private Road', value: 17 },
+        { id: 14, name: 'Railroad', value: 18 },
+        { id: 15, name: 'Runway/Taxiway', value: 19 },
+        { id: 16, name: 'Parking Lot Road', value: 20 },
+        { id: 17, name: 'Alley', value: 25 },
     ];
 
     // Checkbox option definitions
