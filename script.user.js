@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.16
+// @version      0.1.18
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -40,7 +40,17 @@ const roadTypes = [
     { id: 17, name: 'Alley', value: 25 },
 ];
 
-const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60, setLock: false, locks: roadTypes.map(roadType => ({ id: roadType.id, lock: 1 })), speeds: roadTypes.map(roadType => ({ id: roadType.id, speed: 60 })) };
+const defaultOptions = {
+    roadType: 1,
+    unpaved: false,
+    setStreet: false,
+    autosave: false,
+    setSpeed: 60,
+    setLock: false,
+    updateSpeed: false,  // New option for toggling speed updates
+    locks: roadTypes.map(roadType => ({ id: roadType.id, lock: 1 })),
+    speeds: roadTypes.map(roadType => ({ id: roadType.id, speed: 60 }))
+};
 
 const locks = [
     { id: 1, value: 1 },
@@ -218,20 +228,22 @@ const handleUpdate = () => {
 
                     if (rank < lockSetting.lock) toLock = rank;
 
+                    log(toLock);
+
                     wmeSDK.DataModel.Segments.updateSegment({
                         segmentId: id,
-                        lockRank: toLock
+                        lockRank: toLock  // Changed from hardcoded value 2 to use the calculated lock level
                     });
                 }
             }
         }
 
-        // Speed Limit - use road-specific speed
-        if (options.setSpeed != -1) {
+        // Speed Limit - use road-specific speed if updateSpeed is enabled
+        if (options.updateSpeed) {
             const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
             if (selectedRoad) {
                 const speedSetting = options.speeds.find(s => s.id === selectedRoad.id);
-                if (speedSetting) {
+                if (speedSetting && speedSetting.speed >= 0) {
                     wmeSDK.DataModel.Segments.updateSegment({
                         segmentId: id,
                         fwdSpeedLimit: parseInt(speedSetting.speed),
@@ -363,7 +375,8 @@ const constructSettings = () => {
         { id: 'setStreet', text: 'Set Street To None', key: 'setStreet' },
         { id: 'autosave', text: 'Autosave on Action', key: 'autosave' },
         { id: 'unpaved', text: 'Set Road as Unpaved', key: 'unpaved' },
-        { id: 'setLock', text: 'Set the lock to the level', key: 'setLock' }
+        { id: 'setLock', text: 'Set the lock to the level', key: 'setLock' },
+        { id: 'updateSpeed', text: 'Update speed limits', key: 'updateSpeed' }
     ];
 
     // Helper function to create radio buttons
@@ -380,7 +393,8 @@ const constructSettings = () => {
                 <select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
                     ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>L${lock.value}</option>`).join('')}
                 </select>
-                <input type="number" id="speed-${roadType.id}" class="road-speed" data-road-id="${roadType.id}" value="${speedSetting.speed}" min="-1">
+                <input type="number" id="speed-${roadType.id}" class="road-speed" data-road-id="${roadType.id}" 
+                       value="${speedSetting.speed}" min="-1" ${!localOptions.updateSpeed ? 'disabled' : ''}>
             </div>
         </div>`);
 
@@ -512,6 +526,12 @@ const constructSettings = () => {
         $(document).on('click', '#setLock', function () {
             const isChecked = $(this).prop('checked');
             $('.road-lock-level').prop('disabled', !isChecked);
+        });
+
+        // Update all speed inputs when updateSpeed checkbox changes
+        $(document).on('click', '#updateSpeed', function () {
+            const isChecked = $(this).prop('checked');
+            $('.road-speed').prop('disabled', !isChecked);
         });
 
         // Remove the separate lock levels section
