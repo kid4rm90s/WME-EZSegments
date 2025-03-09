@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.14
+// @version      0.1.15
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -40,7 +40,7 @@ const roadTypes = [
     { id: 17, name: 'Alley', value: 25 },
 ];
 
-const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60, setLock: false, locks: roadTypes.map(roadType => ({ id: roadType.id, lock: 1 })) };
+const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60, setLock: false, locks: roadTypes.map(roadType => ({ id: roadType.id, lock: 1 })), speeds: roadTypes.map(roadType => ({ id: roadType.id, speed: 60 })) };
 
 const locks = [
     { id: 1, value: 1 },
@@ -220,13 +220,19 @@ const handleUpdate = () => {
             }
         }
 
-        // Speed Limit
+        // Speed Limit - use road-specific speed
         if (options.setSpeed != -1) {
-            wmeSDK.DataModel.Segments.updateSegment({
-                segmentId: id,
-                fwdSpeedLimit: parseInt(options.setSpeed),
-                revSpeedLimit: parseInt(options.setSpeed)
-            });
+            const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
+            if (selectedRoad) {
+                const speedSetting = options.speeds.find(s => s.id === selectedRoad.id);
+                if (speedSetting) {
+                    wmeSDK.DataModel.Segments.updateSegment({
+                        segmentId: id,
+                        fwdSpeedLimit: parseInt(speedSetting.speed),
+                        revSpeedLimit: parseInt(speedSetting.speed)
+                    });
+                }
+            }
         }
 
         // Handling the street
@@ -328,6 +334,17 @@ const constructSettings = () => {
         }
     };
 
+    // Update speed for a specific road type
+    const updateSpeed = (roadTypeId, speed) => {
+        const options = getOptions();
+        const speedIndex = options.speeds.findIndex(s => s.id === roadTypeId);
+        if (speedIndex !== -1) {
+            options.speeds[speedIndex].speed = parseInt(speed);
+            localOptions.speeds = options.speeds;
+            saveOptions(options);
+        }
+    };
+
     // Reset all options to defaults
     const resetOptions = () => {
         saveOptions(defaultOptions);
@@ -348,14 +365,16 @@ const constructSettings = () => {
         const id = `road-${roadType.id}`;
         const isChecked = localOptions.roadType === roadType.value;
         const lockSetting = localOptions.locks.find(l => l.id === roadType.id) || { id: roadType.id, lock: 1 };
+        const speedSetting = localOptions.speeds.find(s => s.id === roadType.id) || { id: roadType.id, speed: 60 };
 
         const div = $(`<div class="ezroads-option">
             <div class="ezroads-radio-container">
                 <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
                 <label for="${id}">${roadType.name}</label>
                 <select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
-                    ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Lock ${lock.value}</option>`).join('')}
+                    ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Level ${lock.value}</option>`).join('')}
                 </select>
+                <input type="number" id="speed-${roadType.id}" class="road-speed" data-road-id="${roadType.id}" value="${speedSetting.speed}" min="-1">
             </div>
         </div>`);
 
@@ -366,6 +385,10 @@ const constructSettings = () => {
 
         div.find('select').on('change', function () {
             updateLockLevel(roadType.id, $(this).val());
+        });
+
+        div.find('input.road-speed').on('change', function () {
+            updateSpeed(roadType.id, $(this).val());
         });
 
         return div;
@@ -403,22 +426,21 @@ const constructSettings = () => {
                 display: flex;
                 align-items: center;
             }
+            .ezroads-radio-container input[type="radio"] {
+                margin-right: 5px;
+            }
             .ezroads-radio-container label {
                 flex: 1;
                 margin-right: 10px;
+                text-align: center;
             }
             .ezroads-radio-container select {
                 width: 80px;
+                margin-left: auto;
+                margin-right: 5px;
             }
-            .ezroads-speed-input {
-                margin-top: 10px;
-            }
-            .ezroads-speed-input label {
-                display: block;
-                margin-bottom: 5px;
-            }
-            .ezroads-speed-input input {
-                width: 80px;
+            .ezroads-radio-container input.road-speed {
+                width: 60px;
             }
             .ezroads-reset-button {
                 margin-top: 20px;
@@ -447,9 +469,18 @@ const constructSettings = () => {
         </div>`);
         scriptContentPane.append(header);
 
-        // Road type section
+        // Road type and options header
+        const roadTypeHeader = $(`<div class="ezroads-section">
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                <div style="flex-grow: 1; text-align: center;">Road Type</div>
+                <div style="width: 80px; text-align: center;">Lock</div>
+                <div style="width: 60px; text-align: center;">Speed</div>
+            </div>
+        </div>`);
+        scriptContentPane.append(roadTypeHeader);
+
+        // Road type section with header
         const roadTypeSection = $(`<div class="ezroads-section">
-            <h5>Set Road Type</h5>
             <div id="road-type-options"></div>
         </div>`);
         scriptContentPane.append(roadTypeSection);
@@ -470,16 +501,6 @@ const constructSettings = () => {
         checkboxOptions.forEach(option => {
             additionalOptions.append(createCheckbox(option));
         });
-
-        // Speed setting section
-        const speedInput = $(`<div class="ezroads-section ezroads-speed-input">
-            <label for="setSpeed">Value to set speed to (set to -1 to disable)</label>
-            <input type="number" id="setSpeed" name="setSpeed" value="${localOptions.setSpeed}">
-        </div>`);
-        speedInput.find('input').on('change', function () {
-            update('setSpeed', parseInt(this.value, 10));
-        });
-        scriptContentPane.append(speedInput);
 
         // Update all lock dropdowns when setLock checkbox changes
         $(document).on('click', '#setLock', function () {
