@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.15
+// @version      0.1.16
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -208,13 +208,19 @@ const handleUpdate = () => {
 
         // Set lock if enabled
         if (options.setLock) {
+            const rank = wmeSDK.User.getRank();
             const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
             if (selectedRoad) {
                 const lockSetting = options.locks.find(l => l.id === selectedRoad.id);
                 if (lockSetting) {
+
+                    let toLock = lockSetting.lock;
+
+                    if (rank < lockSetting.lock) toLock = rank;
+
                     wmeSDK.DataModel.Segments.updateSegment({
                         segmentId: id,
-                        lockRank: lockSetting.lock
+                        lockRank: toLock
                     });
                 }
             }
@@ -372,7 +378,7 @@ const constructSettings = () => {
                 <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
                 <label for="${id}">${roadType.name}</label>
                 <select id="lock-level-${roadType.id}" class="road-lock-level" data-road-id="${roadType.id}" ${!localOptions.setLock ? 'disabled' : ''}>
-                    ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>Level ${lock.value}</option>`).join('')}
+                    ${locks.map(lock => `<option value="${lock.value}" ${lockSetting.lock === lock.value ? 'selected' : ''}>L${lock.value}</option>`).join('')}
                 </select>
                 <input type="number" id="speed-${roadType.id}" class="road-speed" data-road-id="${roadType.id}" value="${speedSetting.speed}" min="-1">
             </div>
@@ -432,7 +438,7 @@ const constructSettings = () => {
             .ezroads-radio-container label {
                 flex: 1;
                 margin-right: 10px;
-                text-align: center;
+                text-align: left;
             }
             .ezroads-radio-container select {
                 width: 80px;
@@ -471,7 +477,7 @@ const constructSettings = () => {
 
         // Road type and options header
         const roadTypeHeader = $(`<div class="ezroads-section">
-            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="display: flex; align-items: center;">
                 <div style="flex-grow: 1; text-align: center;">Road Type</div>
                 <div style="width: 80px; text-align: center;">Lock</div>
                 <div style="width: 60px; text-align: center;">Speed</div>
