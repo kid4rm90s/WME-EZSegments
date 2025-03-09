@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      1.27
+// @version      2.0
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -72,7 +72,7 @@ const log = (message) => {
 window.SDK_INITIALIZED.then(initScript);
 
 function initScript() {
-    wmeSDK = getWmeSdk({ scriptId: "wme-ez-roads", scriptName: "EZ Roads" });
+    wmeSDK = getWmeSdk({ scriptId: "wme-ez-segments", scriptName: "EZ Segments" });
     WME_EZRoads_bootstrap();
 }
 
@@ -458,7 +458,7 @@ const constructSettings = () => {
 
     // Register the script tab
     wmeSDK.Sidebar.registerScriptTab().then(({ tabLabel, tabPane }) => {
-        tabLabel.innerText = 'EZRoads';
+        tabLabel.innerText = 'EZ Segments';
         tabLabel.title = 'Easily Update Roads';
 
         // Setup base styles
@@ -514,7 +514,7 @@ const constructSettings = () => {
 
         // Header section
         const header = $(`<div class="ezroads-section">
-            <h2>EZRoads</h2>
+            <h2>EZ Segments</h2>
             <div>Current Version: <b>${ScriptVersion}</b></div>
             <div>Update Keybind: <kbd>u</kbd></div>
         </div>`);
