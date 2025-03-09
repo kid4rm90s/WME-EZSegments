@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.18
+// @version      0.1.19
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -243,14 +243,28 @@ const handleUpdate = () => {
             const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
             if (selectedRoad) {
                 const speedSetting = options.speeds.find(s => s.id === selectedRoad.id);
-                if (speedSetting && speedSetting.speed >= 0) {
-                    wmeSDK.DataModel.Segments.updateSegment({
-                        segmentId: id,
-                        fwdSpeedLimit: parseInt(speedSetting.speed),
-                        revSpeedLimit: parseInt(speedSetting.speed)
-                    });
+                log('Selected road for speed: ' + selectedRoad.name);
+                log('Speed setting found: ' + (speedSetting ? 'yes' : 'no'));
+
+                if (speedSetting) {
+                    const speedValue = parseInt(speedSetting.speed, 10);
+                    log('Speed value to set: ' + speedValue);
+
+                    // Apply speed if it's a valid number (including 0)
+                    if (!isNaN(speedValue) && speedValue >= 0) {
+                        log('Applying speed: ' + speedValue);
+                        wmeSDK.DataModel.Segments.updateSegment({
+                            segmentId: id,
+                            fwdSpeedLimit: speedValue,
+                            revSpeedLimit: speedValue
+                        });
+                    } else {
+                        log('Not applying speed - invalid value: ' + speedSetting.speed);
+                    }
                 }
             }
+        } else {
+            log('Speed updates disabled');
         }
 
         // Handling the street
@@ -356,8 +370,17 @@ const constructSettings = () => {
     const updateSpeed = (roadTypeId, speed) => {
         const options = getOptions();
         const speedIndex = options.speeds.findIndex(s => s.id === roadTypeId);
+
+        // Make sure we have a valid integer
+        let speedValue = parseInt(speed, 10);
+        if (isNaN(speedValue)) {
+            speedValue = -1; // Default to -1 for invalid values
+        }
+
+        log(`Updating speed for road type ${roadTypeId} to ${speedValue}`);
+
         if (speedIndex !== -1) {
-            options.speeds[speedIndex].speed = parseInt(speed);
+            options.speeds[speedIndex].speed = speedValue;
             localOptions.speeds = options.speeds;
             saveOptions(options);
         }
@@ -408,7 +431,15 @@ const constructSettings = () => {
         });
 
         div.find('input.road-speed').on('change', function () {
-            updateSpeed(roadType.id, $(this).val());
+            // Get the value as a number
+            const speedValue = parseInt($(this).val(), 10);
+            // If it's not a number, reset to 0
+            if (isNaN(speedValue)) {
+                $(this).val(0);
+                updateSpeed(roadType.id, 0);
+            } else {
+                updateSpeed(roadType.id, speedValue);
+            }
         });
 
         return div;
@@ -532,6 +563,7 @@ const constructSettings = () => {
         $(document).on('click', '#updateSpeed', function () {
             const isChecked = $(this).prop('checked');
             $('.road-speed').prop('disabled', !isChecked);
+            log('Speed update option changed to: ' + isChecked);
         });
 
         // Remove the separate lock levels section
