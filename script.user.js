@@ -1,19 +1,19 @@
 // ==UserScript==
-// @name         WME EZSegments
-// @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      2.0
-// @description  Easily update roads
-// @author       https://github.com/michaelrosstarr
-// @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
-// @exclude      https://www.waze.com/user/*editor/*
-// @exclude      https://www.waze.com/*/user/*editor/*
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
-// @grant        none
-// @license MIT
-// @downloadURL https://update.greasyfork.org/scripts/518381/WME%20EZSegments.user.js
-// @updateURL https://update.greasyfork.org/scripts/518381/WME%20EZSegments.meta.js
+// @name            WME EZSegments
+// @namespace       https://greasyfork.org/en/scripts/518381-wme-ezsegments
+// @version         2.1
+// @description     Easily update roads
+// @author          https://github.com/michaelrosstarr
+// @include 	    /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
+// @exclude         https://www.waze.com/user/*editor/*
+// @exclude         https://www.waze.com/*/user/*editor/*
+// @grant           GM_getValue
+// @grant           GM_setValue
+// @icon            https://www.google.com/s2/favicons?sz=64&domain=waze.com
+// @grant           none
+// @license         GNU GPL(v3)
+// @downloadURL     https://update.greasyfork.org/scripts/518381/WME%20EZSegments.user.js
+// @updateURL       https://update.greasyfork.org/scripts/518381/WME%20EZSegments.meta.js
 // ==/UserScript==
 
 const ScriptName = GM_info.script.name;
