@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      1.26
+// @version      1.27
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -224,9 +224,9 @@ const handleUpdate = () => {
                 const lockSetting = options.locks.find(l => l.id === selectedRoad.id);
                 if (lockSetting) {
 
-                    let toLock = lockSetting.lock;
+                    let toLock = lockSetting.lock - 1;
 
-                    if (rank > lockSetting.lock) toLock = rank;
+                    if (rank < toLock) toLock = rank;
 
                     log(toLock);
 
