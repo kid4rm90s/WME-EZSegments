@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WME EZSegments
 // @namespace    https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version      0.1.11
+// @version      0.1.12
 // @description  Easily update roads
 // @author       https://github.com/michaelrosstarr
 // @include 	 /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -20,7 +20,36 @@ const ScriptName = GM_info.script.name;
 const ScriptVersion = GM_info.script.version;
 let wmeSDK;
 
-const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60 };
+const roadTypes = [
+    { id: 1, name: 'Street', value: 1 },
+    { id: 2, name: 'Primary Street', value: 2 },
+    { id: 3, name: 'Freeway', value: 3 },
+    { id: 4, name: 'Ramp', value: 4 },
+    { id: 5, name: 'Walking Trail', value: 5 },
+    { id: 6, name: 'Major Highway', value: 6 },
+    { id: 7, name: 'Minor Freeway', value: 7 },
+    { id: 8, name: 'Offroad', value: 8 },
+    { id: 9, name: 'Walkway', value: 9 },
+    { id: 10, name: 'Pedestrian Walkway', value: 10 },
+    { id: 11, name: 'Ferry', value: 15 },
+    { id: 12, name: 'Stairway', value: 16 },
+    { id: 13, name: 'Private Road', value: 17 },
+    { id: 14, name: 'Railroad', value: 18 },
+    { id: 15, name: 'Runway/Taxiway', value: 19 },
+    { id: 16, name: 'Parking Lot Road', value: 20 },
+    { id: 17, name: 'Alley', value: 25 },
+];
+
+const defaultOptions = { roadType: 1, unpaved: false, setStreet: false, autosave: false, setSpeed: 60, setLock: false, locks: roadTypes.map(roadType => ({ id: roadType.id, lock: 1 })) };
+
+const locks = [
+    { id: 1, value: 1 },
+    { id: 2, value: 2 },
+    { id: 3, value: 3 },
+    { id: 4, value: 4 },
+    { id: 5, value: 5 },
+    { id: 6, value: 6 },
+]
 
 const log = (message) => {
     if (typeof message === 'string') {
@@ -177,6 +206,20 @@ const handleUpdate = () => {
             }
         }
 
+        // Set lock if enabled
+        if (options.setLock) {
+            const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
+            if (selectedRoad) {
+                const lockSetting = options.locks.find(l => l.id === selectedRoad.id);
+                if (lockSetting) {
+                    wmeSDK.DataModel.Segments.updateSegment({
+                        segmentId: id,
+                        lockRank: lockSetting.lock
+                    });
+                }
+            }
+        }
+
         // Speed Limit
         if (options.setSpeed != -1) {
             wmeSDK.DataModel.Segments.updateSegment({
@@ -265,12 +308,38 @@ const handleUpdate = () => {
 
 const constructSettings = () => {
     const localOptions = getOptions();
+    let currentRoadType = localOptions.roadType;
 
     const update = (key, value) => {
         const options = getOptions();
         options[key] = value;
         localOptions[key] = value;
         saveOptions(options);
+    };
+
+    // Update lock level for the current road type
+    const updateLockLevel = (lockLevel) => {
+        const options = getOptions();
+        const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
+        if (selectedRoad) {
+            const lockIndex = options.locks.findIndex(l => l.id === selectedRoad.id);
+            if (lockIndex !== -1) {
+                options.locks[lockIndex].lock = parseInt(lockLevel);
+                localOptions.locks = options.locks;
+                saveOptions(options);
+            }
+        }
+    };
+
+    // Update displayed lock level when road type changes
+    const updateLockDropdown = () => {
+        const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
+        if (selectedRoad) {
+            const lockSetting = localOptions.locks.find(l => l.id === selectedRoad.id);
+            if (lockSetting && $('#lock-level-select').length) {
+                $('#lock-level-select').val(lockSetting.lock);
+            }
+        }
     };
 
     // Reset all options to defaults
@@ -280,32 +349,12 @@ const constructSettings = () => {
         window.location.reload();
     };
 
-    // Road type definitions
-    const roadTypes = [
-        { id: 1, name: 'Street', value: 1 },
-        { id: 2, name: 'Primary Street', value: 2 },
-        { id: 3, name: 'Freeway', value: 3 },
-        { id: 4, name: 'Ramp', value: 4 },
-        { id: 5, name: 'Walking Trail', value: 5 },
-        { id: 6, name: 'Major Highway', value: 6 },
-        { id: 7, name: 'Minor Freeway', value: 7 },
-        { id: 8, name: 'Offroad', value: 8 },
-        { id: 9, name: 'Walkway', value: 9 },
-        { id: 10, name: 'Pedestrian Walkway', value: 10 },
-        { id: 11, name: 'Ferry', value: 15 },
-        { id: 12, name: 'Stairway', value: 16 },
-        { id: 13, name: 'Private Road', value: 17 },
-        { id: 14, name: 'Railroad', value: 18 },
-        { id: 15, name: 'Runway/Taxiway', value: 19 },
-        { id: 16, name: 'Parking Lot Road', value: 20 },
-        { id: 17, name: 'Alley', value: 25 },
-    ];
-
     // Checkbox option definitions
     const checkboxOptions = [
         { id: 'setStreet', text: 'Set Street To None', key: 'setStreet' },
         { id: 'autosave', text: 'Autosave on Action', key: 'autosave' },
-        { id: 'unpaved', text: 'Set Road as Unpaved', key: 'unpaved' }
+        { id: 'unpaved', text: 'Set Road as Unpaved', key: 'unpaved' },
+        { id: 'setLock', text: 'Set the lock to the level', key: 'setLock' }
     ];
 
     // Helper function to create radio buttons
@@ -316,7 +365,11 @@ const constructSettings = () => {
             <input type="radio" id="${id}" name="defaultRoad" ${isChecked ? 'checked' : ''}>
             <label for="${id}">${roadType.name}</label>
         </div>`);
-        div.on('click', () => update('roadType', roadType.value));
+        div.on('click', () => {
+            update('roadType', roadType.value);
+            currentRoadType = roadType.value;
+            updateLockDropdown();
+        });
         return div;
     };
 
@@ -418,6 +471,37 @@ const constructSettings = () => {
             update('setSpeed', parseInt(this.value, 10));
         });
         scriptContentPane.append(speedInput);
+
+        // Lock level section
+        const lockLevelSection = $(`<div class="ezroads-section ezroads-lock-input">
+            <label for="lock-level-select">Lock level for selected road type</label>
+            <select id="lock-level-select" name="lockLevel" ${!localOptions.setLock ? 'disabled' : ''}>
+                ${locks.map(lock => `<option value="${lock.value}">Level ${lock.value}</option>`).join('')}
+            </select>
+        </div>`);
+
+        // Set the current lock level for the selected road type
+        const updateInitialLockLevel = () => {
+            const selectedRoad = roadTypes.find(rt => rt.value === currentRoadType);
+            if (selectedRoad) {
+                const lockSetting = localOptions.locks.find(l => l.id === selectedRoad.id);
+                if (lockSetting) {
+                    lockLevelSection.find('#lock-level-select').val(lockSetting.lock);
+                }
+            }
+        };
+
+        lockLevelSection.find('select').on('change', function () {
+            updateLockLevel(this.value);
+        });
+
+        // Update lock dropdown state when setLock checkbox changes
+        $('#setLock').on('change', function () {
+            lockLevelSection.find('#lock-level-select').prop('disabled', !this.checked);
+        });
+
+        scriptContentPane.append(lockLevelSection);
+        updateInitialLockLevel();
 
         // Reset button section
         const resetButton = $(`<button class="ezroads-reset-button">Reset All Options</button>`);
