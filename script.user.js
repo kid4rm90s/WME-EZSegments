@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            WME EZSegments
 // @namespace       https://greasyfork.org/en/scripts/518381-wme-ezsegments
-// @version         2.1
+// @version         2.2
 // @description     Easily update roads
 // @author          https://github.com/michaelrosstarr
 // @include 	    /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
@@ -9,35 +9,44 @@
 // @exclude         https://www.waze.com/*/user/*editor/*
 // @grant           GM_getValue
 // @grant           GM_setValue
+// @grant           GM_xmlhttpRequest
 // @icon            https://www.google.com/s2/favicons?sz=64&domain=waze.com
-// @grant           none
 // @license         GNU GPL(v3)
+// @connect         greasyfork.org
+// @require         https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
+// @require         https://update.greasyfork.org/scripts/509664/WME%20Utils%20-%20Bootstrap.js
 // @downloadURL     https://update.greasyfork.org/scripts/518381/WME%20EZSegments.user.js
 // @updateURL       https://update.greasyfork.org/scripts/518381/WME%20EZSegments.meta.js
 // ==/UserScript==
 
-const ScriptName = GM_info.script.name;
-const ScriptVersion = GM_info.script.version;
-let wmeSDK;
+(function main() {
+  "use strict";
+  
+   const updateMessage = 'The update dialogue box now stays for 7 seconds.<br>Thanks for using this script.';
+   const scriptName = GM_info.script.name;
+   const scriptVersion = GM_info.script.version;
+  const downloadUrl = 'https://greasyfork.org/scripts/518381-wme-ezsegments/code/WME%20EZSegments.user.js';
+   let wmeSDK;
 
 const roadTypes = [
-    { id: 1, name: 'Street', value: 1 },
-    { id: 2, name: 'Primary Street', value: 2 },
-    { id: 3, name: 'Freeway', value: 3 },
-    { id: 4, name: 'Ramp', value: 4 },
-    { id: 5, name: 'Walking Trail', value: 5 },
-    { id: 6, name: 'Major Highway', value: 6 },
-    { id: 7, name: 'Minor Freeway', value: 7 },
-    { id: 8, name: 'Offroad', value: 8 },
-    { id: 9, name: 'Walkway', value: 9 },
-    { id: 10, name: 'Pedestrian Walkway', value: 10 },
+    { id: 1, name: 'Freeway', value: 3 },
+	{ id: 2, name: 'Ramp', value: 4 },
+	{ id: 3, name: 'Major Highway', value: 6 },
+	{ id: 4, name: 'Minor Freeway', value: 7 },
+	{ id: 5, name: 'Primary Street', value: 2 },
+    { id: 6, name: 'Street', value: 1 },
+    { id: 7, name: 'Alley', value: 22 },
+	{ id: 8, name: 'Offroad', value: 8 },
+	{ id: 9, name: 'Parking Lot Road', value: 20 },
+	{ id: 10, name: 'Private Road', value: 17 },
     { id: 11, name: 'Ferry', value: 15 },
-    { id: 12, name: 'Stairway', value: 16 },
-    { id: 13, name: 'Private Road', value: 17 },
-    { id: 14, name: 'Railroad', value: 18 },
-    { id: 15, name: 'Runway/Taxiway', value: 19 },
-    { id: 16, name: 'Parking Lot Road', value: 20 },
-    { id: 17, name: 'Alley', value: 25 },
+	{ id: 12, name: 'Railroad', value: 18 },
+	{ id: 13, name: 'Runway/Taxiway', value: 19 },
+    { id: 14, name: 'Walking Trail', value: 5 },
+	{ id: 15, name: 'Pedestrian Walkway', value: 10 },
+	{ id: 16, name: 'Stairway', value: 16 },
+	{ id: 17, name: 'Walkway', value: 9 },
+
 ];
 
 const defaultOptions = {
@@ -69,7 +78,7 @@ const log = (message) => {
     }
 }
 
-window.SDK_INITIALIZED.then(initScript);
+unsafeWindow.SDK_INITIALIZED.then(initScript);
 
 function initScript() {
     wmeSDK = getWmeSdk({ scriptId: "wme-ez-segments", scriptName: "EZ Segments" });
@@ -195,6 +204,16 @@ const getEmptyCity = () => {
 
 }
 
+// Helper function to wrap updates in a promise with delay
+const delayedUpdate = (updateFn, delay) => {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            updateFn();
+            resolve();
+        }, delay);
+    });
+};
+
 const handleUpdate = () => {
     const selection = wmeSDK.Editing.getSelection();
 
@@ -203,20 +222,39 @@ const handleUpdate = () => {
     log('Updating RoadType');
 
     const options = getOptions();
+    let alertMessageParts = [];
+    let updatedRoadType = false;
+    let updatedLockLevel = false;
+    let updatedSpeedLimit = false;
+    let updatedStreet = false;
+    let updatedPaved = false;
+    let updatedCityName = false; // Variable to hold the city name for alert
+    const updatePromises = []; // Array to hold all update promises	
 
     selection.ids.forEach(id => {
 
         // Road Type
+		updatePromises.push(delayedUpdate(() => {
         if (options.roadType) {
 
             const seg = wmeSDK.DataModel.Segments.getById({ segmentId: id });
-
+				const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
+				alertMessageParts.push(`Road Type: <b>${selectedRoad.name}</b>`);
+                updatedRoadType = true;
+				log(`Segment ID: ${id}, Current Road Type: ${seg.roadType}, Target Road Type: ${options.roadType}, Target Road Name : ${selectedRoad.name}`); // Log current and target road type
             if (seg.roadType !== options.roadType) {
+                    try {				
                 wmeSDK.DataModel.Segments.updateSegment({ segmentId: id, roadType: options.roadType });
+                        log('Road type updated successfully.');
+                    } catch (error) {
+                        console.error('Error updating road type:', error);				
             }
         }
+            }
+        }, 200)); // 200ms delay before road type update		
 
         // Set lock if enabled
+        updatePromises.push(delayedUpdate(() => {		
         if (options.setLock) {
             const rank = wmeSDK.State.getUserInfo().rank;
             const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
@@ -230,15 +268,23 @@ const handleUpdate = () => {
 
                     log(toLock);
 
+                    try {
                     wmeSDK.DataModel.Segments.updateSegment({
                         segmentId: id,
                         lockRank: toLock  // Changed from hardcoded value 2 to use the calculated lock level
                     });
-                }
+						alertMessageParts.push(`Lock Level: <b>L${toLock + 1}</b>`);
+                        updatedLockLevel = true;
+                    } catch (error) {
+                        console.error('Error updating segment lock rank:', error);
+                    }					
+					}
+				}
             }
-        }
+        }, 300)); // 250ms delay before lock rank update
 
         // Speed Limit - use road-specific speed if updateSpeed is enabled
+        updatePromises.push(delayedUpdate(() => {			
         if (options.updateSpeed) {
             const selectedRoad = roadTypes.find(rt => rt.value === options.roadType);
             if (selectedRoad) {
@@ -258,6 +304,8 @@ const handleUpdate = () => {
                             fwdSpeedLimit: speedValue,
                             revSpeedLimit: speedValue
                         });
+                        alertMessageParts.push(`Speed Limit: <b>${speedValue}</b>`);
+                        updatedSpeedLimit = true;						
                     } else {
                         log('Not applying speed - invalid value: ' + speedSetting.speed);
                     }
@@ -265,7 +313,8 @@ const handleUpdate = () => {
             }
         } else {
             log('Speed updates disabled');
-        }
+        }			
+        }, 400)); // 300ms delay before lock rank update		
 
         // Handling the street
         if (options.setStreet) {
@@ -279,14 +328,16 @@ const handleUpdate = () => {
                 cityId: city.id,
                 streetName: '',
             });
-
-            log(`City ${city.id}`);
+                alertMessageParts.push(`City Name: <b>${city?.name || 'None'}</b>`);
+                updatedCityName = true;
+            log(`City Name: ${city?.name}, City ID: ${city?.id}, Street ID: ${street?.id}`);
 
             if (!street) {
                 street = wmeSDK.DataModel.Streets.addStreet({
                     streetName: '',
                     cityId: city.id
                 });
+                 log(`Created new empty street. Street ID: ${street?.id}`);				
             }
 
             wmeSDK.DataModel.Segments.updateAddress({
@@ -296,6 +347,7 @@ const handleUpdate = () => {
         }
 
         log(options);
+		updatedStreet = true;		
 
         // Updated unpaved handler with fallback
         if (options.unpaved) {
@@ -330,17 +382,50 @@ const handleUpdate = () => {
                 }
             }
 
-            if (!unpavedToggled) {
-                log('Could not toggle unpaved setting - no compatible elements found');
+                if (unpavedToggled) {
+                    alertMessageParts.push(`Paved: <b>Unpaved</b>`);
+                    updatedPaved = true;
             }
+        } else {
+                alertMessageParts.push(`Paved: <b>Paved</b>`); // Assuming default is paved if not explicitly unpaved
+                updatedPaved = true;
         }
 
     })
 
-    // Autosave
-    if (options.autosave) {
-        wmeSDK.Editing.save().then(() => { });
-    }
+    Promise.all(updatePromises).then(() => {
+        const showAlert = () => {
+            const updatedFeatures = [];
+            if(updatedRoadType) updatedFeatures.push(alertMessageParts.find(part => part.startsWith("Road Type")));
+            if(updatedLockLevel) updatedFeatures.push(alertMessageParts.find(part => part.startsWith("Lock Level")));
+            if(updatedSpeedLimit) updatedFeatures.push(alertMessageParts.find(part => part.startsWith("Speed Limit")));
+            if(updatedStreet) updatedFeatures.push(alertMessageParts.find(part => part.startsWith("Street")));
+            updatedFeatures.push(alertMessageParts.find(part => part.startsWith("City"))); // City name in alert
+            if(updatedPaved) updatedFeatures.push(alertMessageParts.find(part => part.startsWith("Paved")));
+
+            const message = updatedFeatures.filter(Boolean).join(', '); // Filter out undefined if a feature wasn't updated
+            if (message) { // Only show alert if there are updates to report
+                if (WazeWrap?.Alerts) {
+                    WazeWrap.Alerts.info('EZ Segments', `Segment updated with: ${message}`, false, false, 7000);
+                } else {
+                    alert('EZ Segments: Segment updated (WazeWrap Alerts not available)');
+                }
+            }
+		}	
+			
+        // Autosave - DELAYED AUTOSAVE
+        if (options.autosave) {
+            setTimeout(() => {
+                log('Delayed Autosave starting...');
+                wmeSDK.Editing.save().then(() => {
+                    log('Delayed Autosave completed.');
+                    showAlert();
+                });
+            }, 1000); // 1000ms (1 second) delay before autosave
+        } else {
+            showAlert();
+        }
+    });
 
 }
 
@@ -515,7 +600,7 @@ const constructSettings = () => {
         // Header section
         const header = $(`<div class="ezroads-section">
             <h2>EZ Segments</h2>
-            <div>Current Version: <b>${ScriptVersion}</b></div>
+            <div>Current Version: <b>${scriptVersion}</b></div>
             <div>Update Keybind: <kbd>u</kbd></div>
         </div>`);
         scriptContentPane.append(header);
@@ -571,10 +656,23 @@ const constructSettings = () => {
         // Reset button section
         const resetButton = $(`<button class="ezroads-reset-button">Reset All Options</button>`);
         resetButton.on('click', function () {
-            if (confirm('Are you sure you want to reset all options to default values?')) {
+            if (confirm('Are you sure you want to reset all options to default values? It will reload the webpage!')) {
                 resetOptions();
             }
         });
         scriptContentPane.append(resetButton);
     });
 };
+ function scriptupdatemonitor() {
+        if (WazeWrap?.Ready) {
+            WazeWrap.Interface.ShowScriptUpdate(scriptName, scriptVersion, updateMessage);
+        } else {
+            setTimeout(scriptupdatemonitor, 250);
+        }
+    }
+    // Start the "scriptupdatemonitor"
+    scriptupdatemonitor();
+	wmeSDK = bootstrap({ scriptUpdateMonitor: { downloadUrl } });
+    console.log(`${scriptName} initialized.`);
+
+})();
